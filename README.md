@@ -63,7 +63,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3000
 npm run dev
 ```
 
-The application will be available at [http://localhost:3002](http://localhost:3002)
+The application will be available at [http://localhost:3031](http://localhost:3031)
 
 ### Build for Production
 

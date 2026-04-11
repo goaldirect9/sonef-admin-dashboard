@@ -207,6 +207,13 @@ export default function Dashboard() {
                     <div className="font-semibold">View Bookings</div>
                     <div className="text-sm mt-1">Monitor all bookings</div>
                   </button>
+                  <button
+                    onClick={() => router.push('/layout-templates')}
+                    className="px-6 py-4 bg-teal-50 text-teal-700 rounded-lg hover:bg-teal-100 transition text-left"
+                  >
+                    <div className="font-semibold">🚌 Seat Layout Templates</div>
+                    <div className="text-sm mt-1">Design vehicle seat maps for buses</div>
+                  </button>
                 </div>
               </div>
             </>

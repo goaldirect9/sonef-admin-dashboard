@@ -30,9 +30,9 @@ export interface Agency {
 
 export interface User {
   id: string;
-  name: string;
-  email: string;
-  phone: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
   role: string;
   created_at: string;
 }
@@ -91,12 +91,18 @@ class AdminService {
   }
 
   async approveAgency(agencyId: string, reason?: string) {
-    const response = await apiClient.patch(`/admin/agencies/${agencyId}/approve`, { reason });
+    const response = await apiClient.patch(`/admin/agencies/${agencyId}/approve`, {
+      status: 'approved',
+      ...(reason ? { reason } : {}),
+    });
     return response.data;
   }
 
   async suspendAgency(agencyId: string, reason?: string) {
-    const response = await apiClient.patch(`/admin/agencies/${agencyId}/suspend`, { reason });
+    const response = await apiClient.patch(`/admin/agencies/${agencyId}/suspend`, {
+      status: 'suspended',
+      ...(reason ? { reason } : {}),
+    });
     return response.data;
   }
 
@@ -138,6 +144,13 @@ class AdminService {
         search: filters?.search
       }
     });
+    return response.data;
+  }
+
+  async getPaymentProofSignedUrl(paymentId: string): Promise<{ url: string; expires_at: string }> {
+    const response = await apiClient.get<{ url: string; expires_at: string }>(
+      `/payments/admin/${paymentId}/proof-url`,
+    );
     return response.data;
   }
 }

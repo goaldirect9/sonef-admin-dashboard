@@ -38,6 +38,8 @@ export default function ActivityMonitor() {
   });
   
   const [activeTab, setActiveTab] = useState<'bookings' | 'trips' | 'users'>('bookings');
+  const [proofDialog, setProofDialog] = useState<{ paymentId: string; url: string } | null>(null);
+  const [proofLoadingId, setProofLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authService.isAuthenticated()) {
@@ -94,6 +96,22 @@ export default function ActivityMonitor() {
     }
   };
 
+  const openBookingPaymentProof = async (paymentId: string) => {
+    setProofLoadingId(paymentId);
+    try {
+      const { url } = await adminService.getPaymentProofSignedUrl(paymentId);
+      setProofDialog({ paymentId, url });
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      alert(msg ?? 'Could not load payment proof.');
+    } finally {
+      setProofLoadingId(null);
+    }
+  };
+
   const handleFilterChange = (key: keyof Filters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
     // Reset pages when filters change
@@ -121,8 +139,13 @@ export default function ActivityMonitor() {
     });
   };
 
-  const getStatusBadgeClass = (status: string) => {
-    const statusLower = status.toLowerCase();
+  const formatPrice = (value: unknown) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+  };
+
+  const getStatusBadgeClass = (status: string | undefined | null) => {
+    const statusLower = (status ?? '').toLowerCase();
     if (statusLower === 'confirmed' || statusLower === 'active') {
       return 'bg-green-100 text-green-800';
     } else if (statusLower === 'pending') {
@@ -306,18 +329,21 @@ export default function ActivityMonitor() {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Created At
                         </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Proof
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {loading && recentBookings.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                          <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                             Loading bookings...
                           </td>
                         </tr>
                       ) : recentBookings.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                          <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                             No bookings found
                           </td>
                         </tr>
@@ -335,14 +361,28 @@ export default function ActivityMonitor() {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(booking.status)}`}>
-                                {booking.status}
+                                {booking.status ?? '—'}
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              ${booking.price?.toFixed(2) || '0.00'}
+                              ${formatPrice(booking.price)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {formatDate(booking.created_at)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              {booking.manual_payment?.has_proof && booking.manual_payment?.id ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openBookingPaymentProof(booking.manual_payment.id)}
+                                  disabled={proofLoadingId === booking.manual_payment.id}
+                                  className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                                >
+                                  {proofLoadingId === booking.manual_payment.id ? 'Loading…' : 'View'}
+                                </button>
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
                             </td>
                           </tr>
                         ))
@@ -430,7 +470,7 @@ export default function ActivityMonitor() {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(trip.status)}`}>
-                                {trip.status}
+                                {trip.status ?? '—'}
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -568,6 +608,30 @@ export default function ActivityMonitor() {
           </div>
         </main>
       </div>
+
+      {proofDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-auto p-4">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-lg font-semibold text-gray-900">Payment proof</h2>
+              <button
+                type="button"
+                onClick={() => setProofDialog(null)}
+                className="text-gray-500 hover:text-gray-700 text-xl leading-none"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={proofDialog.url}
+              alt="Payment proof"
+              className="max-h-[75vh] w-full object-contain rounded border border-gray-200"
+            />
+          </div>
+        </div>
+      )}
     </>
   );
 }

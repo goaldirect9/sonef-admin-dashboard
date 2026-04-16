@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import authService from '@/services/auth.service';
-import adminService from '@/services/admin.service';
+import adminService, { PendingPublishTrip } from '@/services/admin.service';
 
 interface Filters {
   dateFrom: string;
@@ -20,6 +20,7 @@ export default function ActivityMonitor() {
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
   const [activeTrips, setActiveTrips] = useState<any[]>([]);
   const [recentUsers, setRecentUsers] = useState<any[]>([]);
+  const [pendingPublishTrips, setPendingPublishTrips] = useState<PendingPublishTrip[]>([]);
   
   // Pagination states
   const [bookingsPage, setBookingsPage] = useState(1);
@@ -37,9 +38,14 @@ export default function ActivityMonitor() {
     search: '',
   });
   
-  const [activeTab, setActiveTab] = useState<'bookings' | 'trips' | 'users'>('bookings');
+  const [activeTab, setActiveTab] = useState<'bookings' | 'trips' | 'users' | 'pending-publish'>('bookings');
   const [proofDialog, setProofDialog] = useState<{ paymentId: string; url: string } | null>(null);
   const [proofLoadingId, setProofLoadingId] = useState<string | null>(null);
+
+  // Reject modal state for pending publish
+  const [rejectModal, setRejectModal] = useState<{ tripId: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authService.isAuthenticated()) {
@@ -56,6 +62,7 @@ export default function ActivityMonitor() {
         loadRecentBookings(),
         loadActiveTrips(),
         loadRecentUsers(),
+        loadPendingPublish(),
       ]);
       setError('');
     } catch (err: any) {
@@ -63,6 +70,58 @@ export default function ActivityMonitor() {
       setError('Failed to load activity data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPendingPublish = async () => {
+    try {
+      const data = await adminService.getPendingPublishTrips();
+      setPendingPublishTrips(data);
+    } catch (err) {
+      console.error('Error loading pending publish trips:', err);
+    }
+  };
+
+  const handleApprovePublish = async (tripId: string) => {
+    setActionLoading(tripId);
+    try {
+      await adminService.approvePublishTrip(tripId);
+      setPendingPublishTrips((prev) => prev.filter((t) => t.trip_id !== tripId));
+    } catch {
+      setError('Failed to approve trip');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRejectPublish = async () => {
+    if (!rejectModal) return;
+    setActionLoading(rejectModal.tripId);
+    try {
+      await adminService.rejectPublishTrip(rejectModal.tripId, rejectReason.trim() || undefined);
+      setPendingPublishTrips((prev) => prev.filter((t) => t.trip_id !== rejectModal.tripId));
+      setRejectModal(null);
+      setRejectReason('');
+    } catch {
+      setError('Failed to reject trip');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const openPublishProof = async (paymentId: string) => {
+    setProofLoadingId(paymentId);
+    try {
+      const { url } = await adminService.getPaymentProofSignedUrl(paymentId);
+      setProofDialog({ paymentId, url });
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      alert(msg ?? 'Could not load payment proof.');
+    } finally {
+      setProofLoadingId(null);
     }
   };
 
@@ -300,6 +359,21 @@ export default function ActivityMonitor() {
                   }`}
                 >
                   Recent Users ({usersTotal})
+                </button>
+                <button
+                  onClick={() => setActiveTab('pending-publish')}
+                  className={`px-6 py-4 text-sm font-medium border-b-2 transition ${
+                    activeTab === 'pending-publish'
+                      ? 'border-orange-500 text-orange-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Pending Publish
+                  {pendingPublishTrips.length > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center w-5 h-5 bg-orange-100 text-orange-700 text-xs rounded-full font-bold">
+                      {pendingPublishTrips.length}
+                    </span>
+                  )}
                 </button>
               </nav>
             </div>
@@ -605,9 +679,107 @@ export default function ActivityMonitor() {
                 </div>
               </div>
             )}
+            {/* Pending Publish Tab */}
+            {activeTab === 'pending-publish' && (
+              <div className="p-6">
+                {loading && pendingPublishTrips.length === 0 ? (
+                  <p className="text-gray-500">Loading…</p>
+                ) : pendingPublishTrips.length === 0 ? (
+                  <p className="text-gray-500">No trips awaiting publish approval.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingPublishTrips.map((trip) => (
+                      <div key={trip.trip_id} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex flex-wrap gap-4 justify-between items-start">
+                          <div>
+                            <p className="font-semibold text-gray-900">
+                              {trip.source} → {trip.destination}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              Departure: {new Date(trip.departure_time).toLocaleString()}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              Transporter: {trip.transporter_name ?? '—'}
+                            </p>
+                            {trip.payment && (
+                              <p className="text-sm text-gray-500">
+                                Payment: {trip.payment.amount} MRU via {trip.payment.payment_provider} · {trip.payment.user_phone}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {trip.payment?.id && (
+                              <button
+                                type="button"
+                                onClick={() => openPublishProof(trip.payment!.id)}
+                                disabled={proofLoadingId === trip.payment.id}
+                                className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+                              >
+                                {proofLoadingId === trip.payment.id ? 'Loading…' : 'View proof'}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleApprovePublish(trip.trip_id)}
+                              disabled={actionLoading === trip.trip_id}
+                              className="px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                            >
+                              {actionLoading === trip.trip_id ? 'Processing…' : 'Approve'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setRejectModal({ tripId: trip.trip_id }); setRejectReason(''); }}
+                              disabled={actionLoading === trip.trip_id}
+                              className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </main>
       </div>
+
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Reject trip publish</h2>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Reason (optional)
+            </label>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={3}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-red-400 focus:outline-none"
+              placeholder="Explain why the trip is rejected…"
+            />
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                type="button"
+                onClick={() => setRejectModal(null)}
+                className="px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRejectPublish}
+                disabled={actionLoading !== null}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+              >
+                {actionLoading ? 'Rejecting…' : 'Confirm Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {proofDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

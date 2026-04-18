@@ -181,7 +181,8 @@ class AdminService {
     kind: TransporterDocumentKind,
   ): Promise<{ url: string; expires_at: string }> {
     const response = await apiClient.get<{ url: string; expires_at: string }>(
-      `/admin/transporters/${transporterId}/documents/${kind}/signed-url`,
+      `/admin/transporters/${transporterId}/document-signed-url`,
+      { params: { kind } },
     );
     return response.data;
   }

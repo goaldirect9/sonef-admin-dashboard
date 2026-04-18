@@ -33,6 +33,8 @@ export interface Agency {
   created_at: string;
 }
 
+export type TransporterDocumentKind = 'carte_grise' | 'driving_license' | 'insurance';
+
 export interface TransporterRow {
   id: string;
   name: string;
@@ -40,6 +42,13 @@ export interface TransporterRow {
   phone: string | null;
   is_active: boolean;
   created_at: string;
+  document_status?: string;
+  documents_submitted_at?: string | null;
+  carte_grise_url?: string | null;
+  driving_license_url?: string | null;
+  insurance_url?: string | null;
+  driving_license_expires_at?: string | null;
+  insurance_expires_at?: string | null;
 }
 
 export interface User {
@@ -159,6 +168,35 @@ class AdminService {
     const response = await apiClient.get('/admin/transporters', {
       params: { page, limit, search },
     });
+    return response.data;
+  }
+
+  async getTransporter(transporterId: string): Promise<TransporterRow> {
+    const response = await apiClient.get<TransporterRow>(`/admin/transporters/${transporterId}`);
+    return response.data;
+  }
+
+  async getTransporterDocumentSignedUrl(
+    transporterId: string,
+    kind: TransporterDocumentKind,
+  ): Promise<{ url: string; expires_at: string }> {
+    const response = await apiClient.get<{ url: string; expires_at: string }>(
+      `/admin/transporters/${transporterId}/documents/${kind}/signed-url`,
+    );
+    return response.data;
+  }
+
+  async patchTransporterDocumentExpirations(
+    transporterId: string,
+    body: {
+      driving_license_expires_at?: string | null;
+      insurance_expires_at?: string | null;
+    },
+  ): Promise<TransporterRow> {
+    const response = await apiClient.patch<TransporterRow>(
+      `/admin/transporters/${transporterId}/document-expirations`,
+      body,
+    );
     return response.data;
   }
 

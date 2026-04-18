@@ -1,8 +1,9 @@
 import axios, { AxiosInstance } from 'axios';
 
 function getApiBaseUrl(): string {
-  if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
+  const fromEnv = process.env?.NEXT_PUBLIC_API_URL?.trim();
+  if (typeof process !== 'undefined' && fromEnv) {
+    return fromEnv;
   }
 
   if (typeof window !== 'undefined') {

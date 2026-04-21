@@ -30,3 +30,7 @@ Thumbs.db
 
 # TypeScript
 next-env.d.ts
+
+!.env.production
+
+!.env.production

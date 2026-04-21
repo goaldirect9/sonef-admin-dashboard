@@ -5,6 +5,7 @@ interface SystemOverviewChartProps {
   data: {
     users: number;
     agencies: number;
+    transporters: number;
     trips: number;
     bookings: number;
   };
@@ -21,6 +22,11 @@ const SystemOverviewChart: React.FC<SystemOverviewChartProps> = ({ data }) => {
       name: 'Agencies',
       count: data.agencies,
       fill: '#10b981',
+    },
+    {
+      name: 'Transporters',
+      count: data.transporters,
+      fill: '#06b6d4',
     },
     {
       name: 'Trips',

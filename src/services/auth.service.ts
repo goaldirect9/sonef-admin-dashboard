@@ -6,11 +6,11 @@ interface LoginCredentials {
 }
 
 interface LoginResponse {
-  access_token: string;
+  accessToken: string;
   user: {
     id: string;
-    email: string;
-    name: string;
+    email: string | null;
+    name: string | null;
     role: string;
   };
 }
@@ -18,9 +18,10 @@ interface LoginResponse {
 class AuthService {
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
     const response = await apiClient.post<LoginResponse>('/auth/admin/login', credentials);
-    
-    if (response.data.access_token) {
-      localStorage.setItem('admin_token', response.data.access_token);
+
+    const token = response.data.accessToken;
+    if (token) {
+      localStorage.setItem('admin_token', token);
       localStorage.setItem('admin_user', JSON.stringify(response.data.user));
     }
     

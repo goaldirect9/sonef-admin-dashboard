@@ -1,11 +1,32 @@
 import axios, { AxiosInstance } from 'axios';
 
+function getApiBaseUrl(): string {
+  const fromEnv = process.env?.NEXT_PUBLIC_API_URL?.trim();
+  if (typeof process !== 'undefined' && fromEnv) {
+    return fromEnv;
+  }
+
+  if (typeof window !== 'undefined') {
+    if (window.location.port === '3031') {
+      return `${window.location.protocol}//${window.location.hostname}:3000`;
+    }
+
+    if (window.location.origin.includes('3031')) {
+      return window.location.origin.replace(':3031', ':3000');
+    }
+  }
+
+  return 'http://localhost:3000';
+}
+
+const API_URL = getApiBaseUrl();
+
 class ApiClient {
   private client: AxiosInstance;
 
   constructor() {
     this.client = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000',
+      baseURL: API_URL,
       headers: {
         'Content-Type': 'application/json',
       },

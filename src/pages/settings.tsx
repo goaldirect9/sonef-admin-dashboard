@@ -56,6 +56,13 @@ export default function SettingsPage() {
     }
   };
 
+  const getSettingLabel = (setting: PlatformSetting) => {
+    if (setting.key === 'customer_service_whatsapp') {
+      return 'Customer Service WhatsApp';
+    }
+    return setting.key;
+  };
+
   return (
     <>
       <Head>
@@ -92,7 +99,8 @@ export default function SettingsPage() {
                 <div key={s.key} className="p-5">
                   <div className="flex flex-wrap gap-3 items-end justify-between">
                     <div className="flex-1 min-w-0">
-                      <p className="font-mono text-sm font-semibold text-gray-800">{s.key}</p>
+                      <p className="text-sm font-semibold text-gray-800">{getSettingLabel(s)}</p>
+                      <p className="font-mono text-xs text-gray-500 mt-0.5">{s.key}</p>
                       {s.description && (
                         <p className="text-xs text-gray-500 mt-0.5">{s.description}</p>
                       )}

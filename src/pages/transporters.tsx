@@ -10,14 +10,21 @@ import adminService, {
 const DOC_LABELS: Record<TransporterDocumentKind, string> = {
   carte_grise: 'Carte grise',
   driving_license: 'Driving licence',
+  nni_document: 'National ID (NNI)',
   insurance: 'Insurance',
 };
 
-const DOC_ORDER: TransporterDocumentKind[] = ['carte_grise', 'driving_license', 'insurance'];
+const DOC_ORDER: TransporterDocumentKind[] = [
+  'carte_grise',
+  'driving_license',
+  'nni_document',
+  'insurance',
+];
 
 function docPathFor(row: TransporterRow, kind: TransporterDocumentKind): string | null | undefined {
   if (kind === 'carte_grise') return row.carte_grise_url;
   if (kind === 'driving_license') return row.driving_license_url;
+  if (kind === 'nni_document') return row.nni_document_url;
   return row.insurance_url;
 }
 

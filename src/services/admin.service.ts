@@ -33,7 +33,11 @@ export interface Agency {
   created_at: string;
 }
 
-export type TransporterDocumentKind = 'carte_grise' | 'driving_license' | 'insurance';
+export type TransporterDocumentKind =
+  | 'carte_grise'
+  | 'driving_license'
+  | 'nni_document'
+  | 'insurance';
 
 export interface TransporterRow {
   id: string;
@@ -46,6 +50,7 @@ export interface TransporterRow {
   documents_submitted_at?: string | null;
   carte_grise_url?: string | null;
   driving_license_url?: string | null;
+  nni_document_url?: string | null;
   insurance_url?: string | null;
   driving_license_expires_at?: string | null;
   insurance_expires_at?: string | null;

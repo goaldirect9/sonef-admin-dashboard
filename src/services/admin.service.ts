@@ -101,6 +101,19 @@ export interface PlatformSetting {
   updated_at: string;
 }
 
+export interface PlatformWalletRow {
+  id: string;
+  wallet_definition_id: string;
+  phone_or_code: string;
+  is_enabled: boolean;
+  wallet_definition?: PaymentWalletDefinition;
+}
+
+export interface PlatformWalletSetup {
+  definitions: PaymentWalletDefinition[];
+  platform_wallets: PlatformWalletRow[];
+}
+
 export interface PendingPublishTrip {
   trip_id: string;
   source: string;
@@ -292,6 +305,22 @@ class AdminService {
       `/admin/wallet-definitions/${id}`,
       body,
     );
+    return response.data;
+  }
+
+  async getPlatformWallets(): Promise<PlatformWalletSetup> {
+    const response = await apiClient.get<PlatformWalletSetup>('/admin/platform-wallets');
+    return response.data;
+  }
+
+  async upsertPlatformWallets(items: {
+    wallet_definition_id: string;
+    phone_or_code: string;
+    is_enabled: boolean;
+  }[]): Promise<PlatformWalletSetup> {
+    const response = await apiClient.put<PlatformWalletSetup>('/admin/platform-wallets', {
+      items,
+    });
     return response.data;
   }
 

@@ -132,6 +132,20 @@ export interface PendingPublishTrip {
   } | null;
 }
 
+export interface PendingVehicleRow {
+  id: string;
+  brand: string;
+  model: string;
+  license_plate: string | null;
+  seats: number;
+  has_ac: boolean;
+  created_at: string;
+  approval_status: string;
+  approval_reason: string | null;
+  transporter_id: string | null;
+  transporter_name: string | null;
+}
+
 class AdminService {
   async getDashboardStats(): Promise<DashboardStats> {
     const response = await apiClient.get<DashboardStats>('/admin/dashboard/stats');
@@ -352,6 +366,29 @@ class AdminService {
       `/admin/trips/${tripId}/reject-publish`,
       { reason },
     );
+    return response.data;
+  }
+
+  async getPendingVehicles(page = 1, limit = 10, search = ''): Promise<{
+    data: PendingVehicleRow[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+  }> {
+    const response = await apiClient.get<{ data: PendingVehicleRow[]; pagination: any }>(
+      '/admin/vehicles/pending',
+      { params: { page, limit, search } },
+    );
+    return response.data;
+  }
+
+  async approveVehicle(vehicleId: string) {
+    const response = await apiClient.patch(`/admin/vehicles/${vehicleId}/approve`, {});
+    return response.data;
+  }
+
+  async rejectVehicle(vehicleId: string, reason?: string) {
+    const response = await apiClient.patch(`/admin/vehicles/${vehicleId}/reject`, {
+      reason,
+    });
     return response.data;
   }
 }

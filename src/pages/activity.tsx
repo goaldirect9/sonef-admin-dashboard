@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import authService from '@/services/auth.service';
-import adminService, { PendingPublishTrip } from '@/services/admin.service';
+import adminService, { PendingPublishTrip, PendingVehicleRow } from '@/services/admin.service';
 
 interface Filters {
   dateFrom: string;
@@ -21,14 +21,17 @@ export default function ActivityMonitor() {
   const [activeTrips, setActiveTrips] = useState<any[]>([]);
   const [recentUsers, setRecentUsers] = useState<any[]>([]);
   const [pendingPublishTrips, setPendingPublishTrips] = useState<PendingPublishTrip[]>([]);
+  const [pendingVehicles, setPendingVehicles] = useState<PendingVehicleRow[]>([]);
   
   // Pagination states
   const [bookingsPage, setBookingsPage] = useState(1);
   const [tripsPage, setTripsPage] = useState(1);
   const [usersPage, setUsersPage] = useState(1);
+  const [vehiclesPage, setVehiclesPage] = useState(1);
   const [bookingsTotal, setBookingsTotal] = useState(0);
   const [tripsTotal, setTripsTotal] = useState(0);
   const [usersTotal, setUsersTotal] = useState(0);
+  const [vehiclesTotal, setVehiclesTotal] = useState(0);
   
   // Filter states
   const [filters, setFilters] = useState<Filters>({
@@ -38,13 +41,16 @@ export default function ActivityMonitor() {
     search: '',
   });
   
-  const [activeTab, setActiveTab] = useState<'bookings' | 'trips' | 'users' | 'pending-publish'>('bookings');
+  const [activeTab, setActiveTab] = useState<'bookings' | 'trips' | 'users' | 'pending-publish' | 'pending-vehicles'>('bookings');
   const [proofDialog, setProofDialog] = useState<{ paymentId: string; url: string } | null>(null);
   const [proofLoadingId, setProofLoadingId] = useState<string | null>(null);
 
   // Reject modal state for pending publish
   const [rejectModal, setRejectModal] = useState<{ tripId: string } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  // Reject modal state for pending vehicles
+  const [vehicleRejectModal, setVehicleRejectModal] = useState<{ vehicleId: string } | null>(null);
+  const [vehicleRejectReason, setVehicleRejectReason] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
@@ -53,7 +59,7 @@ export default function ActivityMonitor() {
       return;
     }
     loadData();
-  }, [router, bookingsPage, tripsPage, usersPage, filters]);
+  }, [router, bookingsPage, tripsPage, usersPage, vehiclesPage, filters]);
 
   const loadData = async () => {
     try {
@@ -63,6 +69,7 @@ export default function ActivityMonitor() {
         loadActiveTrips(),
         loadRecentUsers(),
         loadPendingPublish(),
+        loadPendingVehicles(),
       ]);
       setError('');
     } catch (err: any) {
@@ -79,6 +86,16 @@ export default function ActivityMonitor() {
       setPendingPublishTrips(data);
     } catch (err) {
       console.error('Error loading pending publish trips:', err);
+    }
+  };
+
+  const loadPendingVehicles = async () => {
+    try {
+      const res = await adminService.getPendingVehicles(vehiclesPage, 10, filters.search);
+      setPendingVehicles(res.data);
+      setVehiclesTotal(res.pagination.total ?? 0);
+    } catch (err) {
+      console.error('Error loading pending vehicles:', err);
     }
   };
 
@@ -104,6 +121,38 @@ export default function ActivityMonitor() {
       setRejectReason('');
     } catch {
       setError('Failed to reject trip');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleApproveVehicle = async (vehicleId: string) => {
+    setActionLoading(vehicleId);
+    try {
+      await adminService.approveVehicle(vehicleId);
+      setPendingVehicles((prev) => prev.filter((v) => v.id !== vehicleId));
+      setVehiclesTotal((t) => Math.max(0, t - 1));
+    } catch {
+      setError('Failed to approve vehicle');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRejectVehicle = async () => {
+    if (!vehicleRejectModal) return;
+    setActionLoading(vehicleRejectModal.vehicleId);
+    try {
+      await adminService.rejectVehicle(
+        vehicleRejectModal.vehicleId,
+        vehicleRejectReason.trim() || undefined,
+      );
+      setPendingVehicles((prev) => prev.filter((v) => v.id !== vehicleRejectModal.vehicleId));
+      setVehiclesTotal((t) => Math.max(0, t - 1));
+      setVehicleRejectModal(null);
+      setVehicleRejectReason('');
+    } catch {
+      setError('Failed to reject vehicle');
     } finally {
       setActionLoading(null);
     }
@@ -372,6 +421,21 @@ export default function ActivityMonitor() {
                   {pendingPublishTrips.length > 0 && (
                     <span className="ml-2 inline-flex items-center justify-center w-5 h-5 bg-orange-100 text-orange-700 text-xs rounded-full font-bold">
                       {pendingPublishTrips.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('pending-vehicles')}
+                  className={`px-6 py-4 text-sm font-medium border-b-2 transition ${
+                    activeTab === 'pending-vehicles'
+                      ? 'border-amber-500 text-amber-700'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Pending Vehicles
+                  {vehiclesTotal > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center w-5 h-5 bg-amber-100 text-amber-900 text-xs rounded-full font-bold">
+                      {vehiclesTotal}
                     </span>
                   )}
                 </button>
@@ -742,6 +806,90 @@ export default function ActivityMonitor() {
                 )}
               </div>
             )}
+
+            {/* Pending Vehicles Tab */}
+            {activeTab === 'pending-vehicles' && (
+              <div className="p-6">
+                {loading && pendingVehicles.length === 0 ? (
+                  <p className="text-gray-500">Loading…</p>
+                ) : pendingVehicles.length === 0 ? (
+                  <p className="text-gray-500">No vehicles awaiting approval.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingVehicles.map((v) => {
+                      const label = `${v.brand ?? ''} ${v.model ?? ''}`.trim() || 'Vehicle';
+                      const plate = v.license_plate ? ` · ${v.license_plate}` : '';
+                      return (
+                        <div key={v.id} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex flex-wrap gap-4 justify-between items-start">
+                            <div>
+                              <p className="font-semibold text-gray-900">
+                                {label}
+                                {plate}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                Transporter: {v.transporter_name ?? '—'}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                Seats: {v.seats} · AC: {v.has_ac ? 'Yes' : 'No'}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                Submitted: {new Date(v.created_at).toLocaleString()}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => handleApproveVehicle(v.id)}
+                                disabled={actionLoading === v.id}
+                                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                              >
+                                {actionLoading === v.id ? 'Processing…' : 'Approve'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setVehicleRejectModal({ vehicleId: v.id });
+                                  setVehicleRejectReason('');
+                                }}
+                                disabled={actionLoading === v.id}
+                                className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Pagination */}
+                <div className="mt-4 flex justify-between items-center">
+                  <div className="text-sm text-gray-700">
+                    Showing {Math.min((vehiclesPage - 1) * 10 + 1, vehiclesTotal)} to{' '}
+                    {Math.min(vehiclesPage * 10, vehiclesTotal)} of {vehiclesTotal} results
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setVehiclesPage((p) => Math.max(1, p - 1))}
+                      disabled={vehiclesPage === 1}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setVehiclesPage((p) => p + 1)}
+                      disabled={vehiclesPage * 10 >= vehiclesTotal}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </main>
       </div>
@@ -771,6 +919,41 @@ export default function ActivityMonitor() {
               <button
                 type="button"
                 onClick={handleRejectPublish}
+                disabled={actionLoading !== null}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+              >
+                {actionLoading ? 'Rejecting…' : 'Confirm Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {vehicleRejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Reject vehicle</h2>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Reason (optional)
+            </label>
+            <textarea
+              value={vehicleRejectReason}
+              onChange={(e) => setVehicleRejectReason(e.target.value)}
+              rows={3}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-red-400 focus:outline-none"
+              placeholder="Explain why the vehicle is rejected…"
+            />
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                type="button"
+                onClick={() => setVehicleRejectModal(null)}
+                className="px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRejectVehicle}
                 disabled={actionLoading !== null}
                 className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
               >
